@@ -1,0 +1,7 @@
+flask
+httpx
+python-dotenv
+twilio
+requests
+gunicorn
+playwright
