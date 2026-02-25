@@ -22,7 +22,7 @@ log = logging.getLogger(__name__)
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
 GEMINI_VISION_URL = (
     f"https://generativelanguage.googleapis.com/v1beta/models/"
-    f"gemini-1.5-flash-latest:generateContent?key={GEMINI_API_KEY}"
+    f"gemini-2.0-flash:generateContent?key={GEMINI_API_KEY}"
 )
 
 # Stores active Playwright sessions per user phone number
@@ -120,15 +120,33 @@ def start_browser_session(phone: str, website_url: str, details: dict,
     log.info(f"[{phone}] Starting browser session on {website_url}")
 
     pw = sync_playwright().start()
-    browser = pw.chromium.launch(
-        headless=True,
-        args=[
-            "--no-sandbox",
-            "--disable-setuid-sandbox",
-            "--disable-dev-shm-usage",
-            "--disable-blink-features=AutomationControlled"
-        ]
-    )
+
+    # These flags are required on Render/Linux cloud servers (no root access)
+    launch_args = [
+        "--no-sandbox",
+        "--disable-setuid-sandbox",
+        "--disable-dev-shm-usage",
+        "--disable-gpu",
+        "--disable-software-rasterizer",
+        "--disable-blink-features=AutomationControlled",
+        "--single-process",          # Important for Render free tier
+        "--no-zygote",               # Required when --single-process is set
+    ]
+
+    try:
+        # Try headless shell first (lighter, works better on Render)
+        browser = pw.chromium.launch(
+            channel="chromium",
+            headless=True,
+            args=launch_args
+        )
+    except Exception:
+        # Fallback to standard chromium
+        browser = pw.chromium.launch(
+            headless=True,
+            args=launch_args
+        )
+
     page = browser.new_page(viewport={"width": 1280, "height": 900})
 
     # Save session so Phase 2 can reuse this browser
